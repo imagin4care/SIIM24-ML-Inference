@@ -1,0 +1,6 @@
+fastapi[all]
+python-socketio
+fastapi-socketio
+uvicorn
+pyyaml
+sse-starlette

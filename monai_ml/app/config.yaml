@@ -1,0 +1,3 @@
+HOLOSCAN_MODEL_PATH: /app/models
+HOLOSCAN_INPUT_PATH: /app/dcm
+HOLOSCAN_OUTPUT_PATH: /app/output
