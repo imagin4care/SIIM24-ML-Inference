@@ -8,6 +8,9 @@ from functools import partial
 import requests
 import os
 import shutil
+
+import torch
+
 from utils import get_current_folder
 import json
 
@@ -174,8 +177,8 @@ class MonaiZooModel:
         if (task_exist.get("status") is "completed") & (force==False):
             return {"message": f"Task already exists. {str(task_exist)}"}
 
-        # 1. Convert dicom to nifti
-        self.image_management.dicom_series_to_nifti(series_uuid=series_uuid,
+        #1. Convert dicom to nifti
+        self.image_management.dicom_series_to_nifti_niix(series_uuid=series_uuid,
                                                     output_folder=
                                                     os.path.join(os.environ.get("HOLOSCAN_INPUT_PATH"), model_name,"imagesTs")
                                                     )
@@ -191,10 +194,11 @@ class MonaiZooModel:
                    "--bundle_root", bundle_root]
         if "segmentation" in model_name or "classification" in model_name:  # we need inputs image
             command.extend(["--dataset_dir",
-                            os.path.join(os.environ.get("HOLOSCAN_INPUT_PATH"), model_name)])
+                             os.path.join(os.environ.get("HOLOSCAN_INPUT_PATH"), model_name)])
         command.extend(["--output_dir",
-                        os.path.join(os.environ.get("HOLOSCAN_OUTPUT_PATH"), model_name)])
-
+                         os.path.join(os.environ.get("HOLOSCAN_OUTPUT_PATH"), model_name)])
+        with torch.no_grad():
+            torch.cuda.empty_cache()
         process = subprocess.Popen(command)
 
         def wait_for_completion(p, callback):

@@ -5,6 +5,13 @@ services:
     ports: ["8000:8000"]
     volumes:
       - data:/app/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
   orthanc_b:
     build: orthanc_b
     ports: ["8042:8042"]
@@ -17,10 +24,12 @@ services:
 
       ORTHANC__AUTHENTICATION_ENABLED: "false"
       ORTHANC__STORAGE_M_L: "/app/data/raw_input"
+      ORTHANC__DICOM_AET: "ORTHANC-ML"
 
       DICOM_WEB_PLUGIN_ENABLED: "true"
       OSIMIS_WEB_VIEWER1_PLUGIN_ENABLED: "true"
       STONE_WEB_VIEWER_PLUGIN_ENABLED: "true"
+
     volumes:
       - data:/app/data
 
