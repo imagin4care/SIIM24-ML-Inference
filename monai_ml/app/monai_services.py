@@ -3,63 +3,35 @@ import logging
 import subprocess
 import threading
 import zipfile
+from functools import partial
+
 import requests
 import os
 import shutil
-import yaml
+from utils import get_current_folder
 import json
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 progress = {}
 
 
-def get_current_folder():
-    return os.path.dirname(os.path.abspath(__file__))
-
-
-# 1. Load configuration and store as environment variables
-def load_config_as_env_vars(config_path: str):
-    # Read the YAML file
-    with open(config_path, 'r') as file:
-        config = yaml.safe_load(file)
-
-    # Recursively set environment variables
-    def set_env_vars(prefix, config_dict):
-        for key, value in config_dict.items():
-            if isinstance(value, dict):
-                # If value is a dictionary, recurse
-                set_env_vars(f"{prefix}{key}_", value)
-            else:
-                # Set the environment variable
-                env_var = f"{prefix}{key}".upper()
-                os.environ[env_var] = str(value)
-
-    set_env_vars('', config)
-
-
-load_config_as_env_vars(os.path.join(get_current_folder(), 'config.yaml'))
-
-# 2. Setup folder structure
-if not os.path.exists(os.environ.get("HOLOSCAN_MODEL_PATH")):
-    os.makedirs(os.environ.get("HOLOSCAN_MODEL_PATH"))
-if not os.path.exists(os.environ.get("HOLOSCAN_OUTPUT_PATH")):
-    os.makedirs(os.environ.get("HOLOSCAN_OUTPUT_PATH"))
-if not os.path.exists(os.environ.get("HOLOSCAN_INPUT_PATH")):
-    os.makedirs(os.environ.get("HOLOSCAN_INPUT_PATH"))
-
-
 class MonaiZooModel:
     base_url = "https://github.com/Project-MONAI/model-zoo/releases/download/hosting_storage_v1"
     _model_info = None
 
+    def __init__(self, task_handler=None, image_management=None):
+        self.task_handler = task_handler
+        self.image_management = image_management
+
     def __str__(self):
         title_art = r"""
-          __  __  ____  _   _          _____       ____  _____ _______ _    _          _   _  _____ 
-         |  \/  |/ __ \| \ | |   /\   |_   _|     / __ \|  __ \__   __| |  | |   /\   | \ | |/ ____|
-         | \  / | |  | |  \| |  /  \    | |______| |  | | |__) | | |  | |__| |  /  \  |  \| | |     
-         | |\/| | |  | | . ` | / /\ \   | |______| |  | |  _  /  | |  |  __  | / /\ \ | . ` | |     
-         | |  | | |__| | |\  |/ ____ \ _| |_     | |__| | | \ \  | |  | |  | |/ ____ \| |\  | |____ 
-         |_|  |_|\____/|_| \_/_/    \_\_____|     \____/|_|  \_\ |_|  |_|  |_/_/    \_\_| \_|\_____
+███╗   ███╗ ██████╗ ███╗   ██╗ █████╗ ██╗       ██████╗ ██████╗ ████████╗██╗  ██╗ █████╗ ███╗   ██╗ ██████╗
+████╗ ████║██╔═══██╗████╗  ██║██╔══██╗██║      ██╔═══██╗██╔══██╗╚══██╔══╝██║  ██║██╔══██╗████╗  ██║██╔════╝
+██╔████╔██║██║   ██║██╔██╗ ██║███████║██║█████╗██║   ██║██████╔╝   ██║   ███████║███████║██╔██╗ ██║██║     
+██║╚██╔╝██║██║   ██║██║╚██╗██║██╔══██║██║╚════╝██║   ██║██╔══██╗   ██║   ██╔══██║██╔══██║██║╚██╗██║██║     
+██║ ╚═╝ ██║╚██████╔╝██║ ╚████║██║  ██║██║      ╚██████╔╝██║  ██║   ██║   ██║  ██║██║  ██║██║ ╚████║╚██████╗
+
+                                                                                              
         """
 
         header = "\033[1;34m" + "=" * 60 + "\033[0m"
@@ -175,6 +147,7 @@ class MonaiZooModel:
         return os.listdir(os.environ.get("HOLOSCAN_MODEL_PATH"))
 
     def get_bundle_root(self, name1):
+        """Get the bundle root for a model."""
         base_path = os.path.join(os.environ.get("HOLOSCAN_MODEL_PATH"), name1)
 
         # List directories under the base path
@@ -192,7 +165,23 @@ class MonaiZooModel:
         except Exception as e:
             return f"Error: {str(e)}"
 
-    def inference(self, model_name):
+    def inference(self, model_name, series_uuid, force=False):
+        """Run inference for a model."""
+        task_exist = None
+        if self.task_handler is not None:
+            task_exist = self.task_handler.add_records({"task_name": model_name, "series_uuid": "placeholder"})
+
+        if (task_exist.get("status") is "completed") & (force==False):
+            return {"message": f"Task already exists. {str(task_exist)}"}
+
+        # 1. Convert dicom to nifti
+        self.image_management.dicom_series_to_nifti(series_uuid=series_uuid,
+                                                    output_folder=
+                                                    os.path.join(os.environ.get("HOLOSCAN_INPUT_PATH"), model_name,"imagesTs")
+                                                    )
+
+        post_inference = partial(self.post_inference, model_name)
+
         bundle_root = self.get_bundle_root(model_name)
         config_path = os.path.join(bundle_root, "configs", "inference.json")
         command = ["python",
@@ -205,5 +194,17 @@ class MonaiZooModel:
                             os.path.join(os.environ.get("HOLOSCAN_INPUT_PATH"), model_name)])
         command.extend(["--output_dir",
                         os.path.join(os.environ.get("HOLOSCAN_OUTPUT_PATH"), model_name)])
-        print(command)
-        subprocess.run(command, check=True)
+
+        process = subprocess.Popen(command)
+
+        def wait_for_completion(p, callback):
+            p.wait()
+            if p.returncode == 0:
+                callback()
+
+        threading.Thread(target=wait_for_completion, args=(process, post_inference)).start()
+
+    def post_inference(self, model_name):
+        logging.info(f"Post inference for model {model_name}")
+        # Do something after inference
+        pass

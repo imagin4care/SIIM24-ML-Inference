@@ -1,0 +1,22 @@
+{
+    "Name": "OrthancB",
+    "StorageDirectory": "/var/lib/orthanc/db",
+    "IndexDirectory": "/var/lib/orthanc/db",
+    "DicomAet": "ORTHANC",
+    "DicomPort": 4242,
+    "HttpPort": 8042,
+    "HttpDescribeErrors": true,
+    "HttpVerbose": true,
+    "ServerThreads": 4,
+    "MaximumStorageSize": 100000,
+    "MaximumPatientCount": 100,
+    "Plugins": [
+        "/usr/local/share/orthanc/plugins"
+    ],
+    "PythonScript": "/etc/orthanc/orthanc-auto-download.py",
+    "StorageML": "/app/data/raw_input",
+    "RegisteredUsers": {
+        "orthanc": "orthanc"
+    },
+    "AuthenticationEnabled": false
+}

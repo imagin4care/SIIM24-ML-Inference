@@ -1,0 +1,33 @@
+version: "3.3"
+services:
+  ml_service:
+    build: monai_ml
+    ports: ["8000:8000"]
+    volumes:
+      - data:/app/data
+  orthanc_b:
+    build: orthanc_b
+    ports: ["8042:8042"]
+    environment:
+      ORTHANC__NAME: "orthanc-python"
+
+      VERBOSE_ENABLED: "true"
+      VERBOSE_STARTUP: "true"
+      ORTHANC__PYTHON_SCRIPT: "/python/orthanc-auto-download.py"
+
+      ORTHANC__AUTHENTICATION_ENABLED: "false"
+      ORTHANC__STORAGE_M_L: "/app/data/raw_input"
+
+      DICOM_WEB_PLUGIN_ENABLED: "true"
+      OSIMIS_WEB_VIEWER1_PLUGIN_ENABLED: "true"
+      STONE_WEB_VIEWER_PLUGIN_ENABLED: "true"
+    volumes:
+      - data:/app/data
+
+volumes:
+  data:
+    driver: local
+    driver_opts:
+        type: none
+        device: ./data
+        o: bind

@@ -4,3 +4,4 @@ fastapi-socketio
 uvicorn
 pyyaml
 sse-starlette
+dcm2niix

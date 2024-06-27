@@ -29,3 +29,4 @@ dependencies:
     - pyyaml
     - sse-starlette
     - pytorch-ignite
+    - dcm2niix

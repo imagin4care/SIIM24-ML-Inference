@@ -1,3 +1,5 @@
-HOLOSCAN_MODEL_PATH: /app/models
-HOLOSCAN_INPUT_PATH: /app/dcm
-HOLOSCAN_OUTPUT_PATH: /app/output
+HOLOSCAN_MODEL_PATH: /app/data/models
+HOLOSCAN_INPUT_PATH: /app/data/dcm
+HOLOSCAN_OUTPUT_PATH: /app/data/output
+TASK_RECORDS_PATH: /app/data/records
+RAW_INPUT_FOLDER: /app/data/raw_input
